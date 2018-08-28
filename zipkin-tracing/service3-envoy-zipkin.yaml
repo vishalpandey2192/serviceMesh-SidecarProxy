@@ -1,0 +1,83 @@
+static_resources:
+  listeners:
+  - address:
+      socket_address:
+        address: 0.0.0.0
+        port_value: 80
+    filter_chains:
+    - filters:
+      - name: envoy.http_connection_manager
+        config:
+          tracing:
+            operation_name: ingress
+          codec_type: auto
+           tls_context:
+            common_tls_context:
+              validation_context:
+                trusted_ca:
+                  filename: /usr/local/my-client-ca.crt
+          stat_prefix: ingress_http
+          route_config:
+            name: local_route
+            virtual_hosts:
+            - name: service3
+              domains:
+              - "*"
+              routes: 
+                allow_origin: ["http://PAYPAL.COM"]
+                allow_methods: "POST, GET, OPTIONS"
+                allow_headers: "Content-Type"
+              - match:
+                  prefix: "/"
+                route:
+                  host_rewrite: "yahoo.com"
+                  path_rewite: "v1/a/a"
+                  cluster:
+                  - name: c1
+                    weight: 60
+                  - name: c1
+                    weight: 40
+                decorator:
+                  operation: checkStock
+            response_headers_to_add: 
+            - key: header1
+              value: value1
+            - key: header2
+              value: value2
+          http_filters:
+          - name: envoy.router
+            config: {}
+  clusters:
+  - name: local_service
+    connect_timeout: 0.250s
+    type: strict_dns
+    lb_policy: round_robin
+    hosts:
+    - socket_address:
+        address: 127.0.0.1
+        port_value: 8080
+    tls_context:
+      common_tls_context:
+        validation_context:
+          trusted_ca:
+            filename: /etc/ssl/certs/ca-certificates.crthost_redirect
+  - name: zipkin
+    connect_timeout: 1s
+    type: strict_dns
+    lb_policy: round_robin
+    hosts:
+    - socket_address:
+        address: zipkin
+        port_value: 9411
+tracing:
+  http:
+    name: envoy.zipkin
+    config:
+      collector_cluster: zipkin
+      collector_endpoint: "/api/v1/spans"
+admin:
+  access_log_path: "/dev/null"
+  address:
+    socket_address:
+      address: 0.0.0.0
+      port_value: 8001
